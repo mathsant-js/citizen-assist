@@ -1,5 +1,6 @@
 import csv
 import json
+import re
 from datetime import date
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -18,6 +19,11 @@ CAMPOS_ATENDIMENTO = {
     "tentativas": (int,),
     "tempo_segundos": (int, float),
 }
+
+APRESENTACAO_COM_NOME = re.compile(
+    r"\b(?:meu\s+nome(?:\s+completo)?(?:\s+[eé]\b|\s*:)|me\s+chamo\b)",
+    re.IGNORECASE,
+)
 
 
 class Assistente:
@@ -42,6 +48,7 @@ class Assistente:
         inicio = time()
         tentativas = 0
         ultima_pergunta = ""
+        print("\nNão inclua nome, CPF, telefone ou e-mail na pergunta.")
         while True:
             pergunta = input("\nDigite sua dúvida (0 para voltar): ").strip()
             if pergunta == "0":
@@ -51,8 +58,12 @@ class Assistente:
             if not pergunta:
                 print("Digite uma pergunta.")
                 continue
-            if "@" in pergunta or sum(caractere.isdigit() for caractere in pergunta) >= 8:
-                print("Atenção: não digite CPF, telefone ou e-mail. Reescreva a pergunta.")
+            if (
+                "@" in pergunta
+                or sum(caractere.isdigit() for caractere in pergunta) >= 8
+                or APRESENTACAO_COM_NOME.search(pergunta)
+            ):
+                print("Atenção: remova os dados pessoais e reescreva a pergunta.")
                 continue
             tentativas += 1
             ultima_pergunta = pergunta
@@ -144,6 +155,7 @@ class Assistente:
     def indicadores(self) -> dict:
         total = len(self.historico)
         encontrados = [registro for registro in self.historico if registro["encontrou"]]
+        titulos_por_id = {orientacao.id: orientacao.titulo for orientacao in self.base.orientacoes}
         return {
             "respostas_encontradas": round(100 * len(encontrados) / total, 1) if total else 0.0,
             "taxa_acerto": (
@@ -163,8 +175,12 @@ class Assistente:
                 if self.notas_facilidade else None
             ),
             "duvidas_sem_solucao": [
-                registro["pergunta"] for registro in self.historico
-                if registro["pergunta"] and not registro["ajudou"]
+                registro["pergunta"] or titulos_por_id.get(
+                    registro["id_orientacao"], f"Orientação #{registro['id_orientacao']}"
+                )
+                for registro in self.historico
+                if not registro["ajudou"]
+                and (registro["pergunta"] or registro["id_orientacao"] is not None)
             ],
         }
 

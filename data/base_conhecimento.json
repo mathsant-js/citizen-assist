@@ -107,7 +107,9 @@
       "meu contrato está errado",
       "cargo está errado",
       "salário está errado",
-      "nome está errado"
+      "nome está errado",
+      "nome está errado na carteira",
+      "corrigir meu nome na ctps"
     ],
     "resposta": "Se o erro for no contrato atual, como cargo, salário ou data de admissão, peça ao RH ou ao empregador que corrija o registro no eSocial. Se o erro for nos dados pessoais, como nome ou data de nascimento, procure a Receita Federal e o INSS para atualizá-los. A Carteira de Trabalho Digital recebe esses dados dos cadastros oficiais.",
     "documentos": [
@@ -129,7 +131,12 @@
       "tirar meu cpf",
       "fazer cpf",
       "fazer o cpf",
-      "inscrição no cpf",
+      "primeira inscrição no cpf",
+      "faço a inscrição no cpf",
+      "faço minha inscrição no cpf",
+      "fazer inscrição no cpf",
+      "fazer a inscrição no cpf",
+      "inscrever no cpf",
       "cpf pela primeira vez",
       "primeira via do cpf",
       "ainda não tenho cpf"
@@ -175,6 +182,9 @@
     "titulo": "Emitir o comprovante de inscrição no CPF (segunda via)",
     "palavras_chave": [
       "comprovante de inscrição no cpf",
+      "comprovar minha inscrição no cpf",
+      "comprovar a inscrição no cpf",
+      "comprovar inscrição no cpf",
       "comprovante do cpf",
       "comprovante de cpf",
       "comprovante cpf",

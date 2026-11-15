@@ -50,8 +50,8 @@ def executar_menu(assistente: Assistente, pasta_dados: Path) -> None:
             print("Dúvidas sem solução:")
             duvidas = indicadores["duvidas_sem_solucao"]
             if duvidas:
-                for pergunta in duvidas:
-                    print(f"  - {pergunta}")
+                for duvida in duvidas:
+                    print(f"  - {duvida}")
             else:
                 print("  Nenhuma registrada.")
         elif opcao == "4":
