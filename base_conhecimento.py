@@ -25,7 +25,23 @@ class BaseConhecimento:
             registros = json.load(arquivo)
         if not isinstance(registros, list):
             raise ValueError("A base de conhecimento deve conter uma lista de orientações.")
-        self.orientacoes = [Orientacao(**registro) for registro in registros]
+        orientacoes = [Orientacao(**registro) for registro in registros]
+        for orientacao in orientacoes:
+            textos = (
+                orientacao.categoria, orientacao.titulo, orientacao.resposta,
+                orientacao.onde, orientacao.fonte, orientacao.verificado_em,
+            )
+            listas = (orientacao.palavras_chave, orientacao.documentos)
+            if (
+                type(orientacao.id) is not int
+                or not all(isinstance(texto, str) for texto in textos)
+                or not all(
+                    isinstance(lista, list) and all(isinstance(item, str) for item in lista)
+                    for lista in listas
+                )
+            ):
+                raise ValueError("Uma orientação da base contém campos inválidos.")
+        self.orientacoes = orientacoes
 
     def categorias(self) -> list[str]:
         return list(dict.fromkeys(orientacao.categoria for orientacao in self.orientacoes))

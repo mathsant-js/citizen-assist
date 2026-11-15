@@ -12,7 +12,14 @@ def main() -> None:
     except (OSError, ValueError, TypeError):
         print("Não foi possível carregar a base de conhecimento. Confira o arquivo JSON.")
 
-    assistente = Assistente("Citizen Assist AI", base)
+    assistente = Assistente("Citizen Assist AI", base, pasta_dados / "historico.json")
+    try:
+        executar_menu(assistente, pasta_dados)
+    except (EOFError, KeyboardInterrupt):
+        print("\nAtendimento encerrado.")
+
+
+def executar_menu(assistente: Assistente, pasta_dados: Path) -> None:
     while True:
         print(f"\n{assistente.nome}")
         print("1. Perguntar")
@@ -23,6 +30,7 @@ def main() -> None:
         opcao = input("Escolha uma opção: ").strip()
 
         if opcao == "0":
+            assistente.avaliar_facilidade()
             return
         if opcao == "1":
             assistente.perguntar()
@@ -32,14 +40,23 @@ def main() -> None:
             indicadores = assistente.indicadores()
             print(f"Respostas encontradas: {indicadores['respostas_encontradas']}%")
             print(f"Taxa de acerto: {indicadores['taxa_acerto']}%")
-            print(f"Tempo médio nos atendimentos com resposta: {indicadores['tempo_medio']} s")
+            print(f"Tempo médio para encontrar uma orientação: {indicadores['tempo_medio']} s")
             print(f"Tentativas por atendimento: {indicadores['tentativas_por_atendimento']}")
+            facilidade = indicadores["facilidade_uso"]
+            if facilidade is None:
+                print("Facilidade de uso: sem avaliações.")
+            else:
+                print(f"Facilidade de uso: {facilidade:.1f}/5")
             print("Dúvidas sem solução:")
-            for pergunta in indicadores["duvidas_sem_solucao"]:
-                print(f"  - {pergunta}")
+            duvidas = indicadores["duvidas_sem_solucao"]
+            if duvidas:
+                for pergunta in duvidas:
+                    print(f"  - {pergunta}")
+            else:
+                print("  Nenhuma registrada.")
         elif opcao == "4":
             if not assistente.historico:
-                print("Nenhum atendimento nesta sessão para exportar.")
+                print("Nenhum atendimento registrado para exportar.")
                 continue
             try:
                 assistente.exportar_csv(pasta_dados / "atendimentos.csv")

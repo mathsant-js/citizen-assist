@@ -1,22 +1,52 @@
 import csv
+import json
 from datetime import date
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from time import time
 
 from base_conhecimento import BaseConhecimento
 
 
+CAMPOS_ATENDIMENTO = {
+    "data": (str,),
+    "origem": (str,),
+    "pergunta": (str,),
+    "id_orientacao": (int, type(None)),
+    "encontrou": (bool,),
+    "ajudou": (bool,),
+    "tentativas": (int,),
+    "tempo_segundos": (int, float),
+}
+
+
 class Assistente:
-    def __init__(self, nome: str, base: BaseConhecimento):
+    def __init__(
+        self, nome: str, base: BaseConhecimento, caminho_historico: str | Path | None = None,
+    ):
         self.nome = nome
         self.base = base
         self.historico: list[dict] = []
+        self.notas_facilidade: list[int] = []
+        self.caminho_historico: Path | None = None
+        if caminho_historico is not None:
+            caminho = Path(caminho_historico)
+            try:
+                self._carregar_historico(caminho)
+            except (OSError, ValueError):
+                print("Não foi possível ler o histórico. Os dados desta sessão ficarão em memória.")
+            else:
+                self.caminho_historico = caminho
 
     def perguntar(self) -> None:
         inicio = time()
+        tentativas = 0
+        ultima_pergunta = ""
         while True:
             pergunta = input("\nDigite sua dúvida (0 para voltar): ").strip()
             if pergunta == "0":
+                if tentativas:
+                    self.registrar("pergunta", ultima_pergunta, None, False, tentativas, inicio)
                 return
             if not pergunta:
                 print("Digite uma pergunta.")
@@ -24,14 +54,14 @@ class Assistente:
             if "@" in pergunta or sum(caractere.isdigit() for caractere in pergunta) >= 8:
                 print("Atenção: não digite CPF, telefone ou e-mail. Reescreva a pergunta.")
                 continue
-            break
+            tentativas += 1
+            ultima_pergunta = pergunta
+            resultados = self.base.buscar(pergunta)
+            if resultados and resultados[0][0] >= 3:
+                break
+            print("Não encontrei uma orientação. Tente outras palavras ou volte para navegar por categoria.")
 
-        resultados = self.base.buscar(pergunta)
-        if not resultados or resultados[0][0] < 3:
-            print("Não encontrei uma orientação. Tente outras palavras ou navegue por categoria.")
-            self.registrar("pergunta", pergunta, None, False, 1, inicio)
-            return
-
+        fim_busca = time()
         pontos, orientacao = resultados[0]
         confianca = "ALTA" if pontos >= 6 else "MÉDIA"
         print(f"\nConfiança da resposta: {confianca} ({pontos} pontos)")
@@ -48,7 +78,7 @@ class Assistente:
                 print(f"  - {titulo}")
 
         ajudou = self._pedir_feedback()
-        self.registrar("pergunta", pergunta, orientacao.id, ajudou, 1, inicio)
+        self.registrar("pergunta", pergunta, orientacao.id, ajudou, tentativas, inicio, fim=fim_busca)
 
     def navegar(self) -> None:
         inicio = time()
@@ -71,9 +101,10 @@ class Assistente:
                 continue
 
             orientacao = orientacoes[opcao - 1]
+            fim_busca = time()
             orientacao.exibir()
             ajudou = self._pedir_feedback()
-            self.registrar("categoria", "", orientacao.id, ajudou, 1, inicio)
+            self.registrar("categoria", "", orientacao.id, ajudou, 1, inicio, fim=fim_busca)
             return
 
     def registrar(
@@ -84,7 +115,11 @@ class Assistente:
         ajudou: bool,
         tentativas: int,
         inicio: float,
+        *,
+        fim: float | None = None,
     ) -> None:
+        if fim is None:
+            fim = time()
         self.historico.append({
             "data": date.today().isoformat(),
             "origem": origem,
@@ -93,8 +128,18 @@ class Assistente:
             "encontrou": id_orientacao is not None,
             "ajudou": ajudou,
             "tentativas": tentativas,
-            "tempo_segundos": round(time() - inicio, 1),
+            "tempo_segundos": round(fim - inicio, 1),
         })
+        self._salvar_historico()
+
+    def avaliar_facilidade(self) -> None:
+        while True:
+            nota = input("Qual nota você dá para a facilidade de uso? (1 a 5): ").strip()
+            if nota in ("1", "2", "3", "4", "5"):
+                self.notas_facilidade.append(int(nota))
+                self._salvar_historico()
+                return
+            print("Digite uma nota de 1 a 5.")
 
     def indicadores(self) -> dict:
         total = len(self.historico)
@@ -113,6 +158,10 @@ class Assistente:
                 round(sum(registro["tentativas"] for registro in self.historico) / total, 1)
                 if total else 0.0
             ),
+            "facilidade_uso": (
+                round(sum(self.notas_facilidade) / len(self.notas_facilidade), 1)
+                if self.notas_facilidade else None
+            ),
             "duvidas_sem_solucao": [
                 registro["pergunta"] for registro in self.historico
                 if registro["pergunta"] and not registro["ajudou"]
@@ -120,14 +169,68 @@ class Assistente:
         }
 
     def exportar_csv(self, caminho: str | Path = "data/atendimentos.csv") -> None:
-        campos = [
-            "data", "origem", "pergunta", "id_orientacao", "encontrou",
-            "ajudou", "tentativas", "tempo_segundos",
-        ]
         with Path(caminho).open("w", encoding="utf-8", newline="") as arquivo:
-            escritor = csv.DictWriter(arquivo, fieldnames=campos)
+            escritor = csv.DictWriter(
+                arquivo, fieldnames=list(CAMPOS_ATENDIMENTO), extrasaction="ignore",
+            )
             escritor.writeheader()
             escritor.writerows(self.historico)
+
+    def _carregar_historico(self, caminho: Path) -> None:
+        try:
+            conteudo = caminho.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return
+        if not conteudo.strip():
+            return
+
+        dados = json.loads(conteudo)
+        if isinstance(dados, list):
+            dados = {"atendimentos": dados, "notas_facilidade": []}
+        if not isinstance(dados, dict):
+            raise ValueError("Formato do histórico inválido.")
+
+        atendimentos = dados.get("atendimentos")
+        notas = dados.get("notas_facilidade", [])
+        if not isinstance(atendimentos, list) or not all(
+            isinstance(registro, dict) and all(
+                campo in registro and type(registro[campo]) in tipos
+                for campo, tipos in CAMPOS_ATENDIMENTO.items()
+            )
+            for registro in atendimentos
+        ):
+            raise ValueError("Atendimentos do histórico inválidos.")
+        if not isinstance(notas, list) or not all(
+            type(nota) is int and 1 <= nota <= 5 for nota in notas
+        ):
+            raise ValueError("Notas de facilidade do histórico inválidas.")
+
+        self.historico = atendimentos
+        self.notas_facilidade = notas
+
+    def _salvar_historico(self) -> None:
+        caminho = self.caminho_historico
+        if caminho is None:
+            return
+
+        dados = {"atendimentos": self.historico, "notas_facilidade": self.notas_facilidade}
+        temporario = None
+        try:
+            with NamedTemporaryFile(
+                mode="w", encoding="utf-8", dir=caminho.parent, delete=False,
+            ) as arquivo:
+                temporario = Path(arquivo.name)
+                json.dump(dados, arquivo, ensure_ascii=False, indent=2)
+                arquivo.write("\n")
+            temporario.replace(caminho)
+        except OSError:
+            print("Não foi possível gravar o histórico. Os dados continuam disponíveis nesta sessão.")
+        finally:
+            if temporario is not None:
+                try:
+                    temporario.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     @staticmethod
     def _escolher(opcoes: list[str]) -> int:
