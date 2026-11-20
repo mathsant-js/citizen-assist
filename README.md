@@ -100,3 +100,6 @@ Cada atendimento em `data/historico.json` guarda `data`, `origem`, `pergunta`, `
 - A busca depende dos termos cadastrados e cobre os assuntos da base local. Perguntas genéricas, sinônimos ausentes ou intenções parecidas podem exigir reformulação. A confiança indica a pontuação da busca.
 - O programa rejeita texto com `@`, oito ou mais dígitos ou formas explícitas de se apresentar, como “meu nome é” e “me chamo”. Esse filtro é heurístico. Durante os testes, use perguntas sem informações pessoais e revise os registros antes de compartilhá-los.
 - As orientações refletem as fontes nas datas registradas. Consulte o canal oficial para confirmar os requisitos antes de solicitar um serviço.
+
+## Vídeo Técnico e Demonstrativo do Projeto
+> https://youtu.be/REnbO6fcAhs
